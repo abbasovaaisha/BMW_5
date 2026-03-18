@@ -1,65 +1,46 @@
-#include <stdio.h>
-
-#ifdef _OPENMP
+#include <iostream>
+#include <iomanip>
 #include <omp.h>
-#else
-#include <time.h>
-#endif
 
-#define N 1000000           // увеличьте до 1 млн для наглядности
+#define N 1000
 #define H 1e-5
 
+using std::cout;
+using std::endl;
+using std::fixed;
+using std::setprecision;
+
 double f(double x) {
-    return x * x;           // тестовая функция
+    return x * x;
 }
 
 int main() {
     double a = 0.0, b = 1.0;
     double dx = (b - a) / (N - 1);
-    double deriv[N];        // для больших N лучше использовать malloc
+    double deriv[N];
 
-    // ---- Последовательный расчёт ----
-    #ifdef _OPENMP
-        double start = omp_get_wtime();
-    #else
-        clock_t start = clock();
-    #endif
-
-    for (int i = 0; i < N; i++) {
+    double start = omp_get_wtime();
+    for (int i = 0; i < N; ++i) {
         double x = a + i * dx;
         deriv[i] = (f(x + H) - f(x - H)) / (2.0 * H);
     }
+    double end = omp_get_wtime();
+    cout << fixed << setprecision(6);
+    cout << "Последовательное время: " << end - start << " сек\n";
 
-    #ifdef _OPENMP
-        double end = omp_get_wtime();
-        printf("Последовательное время: %f сек\n", end - start);
-    #else
-        clock_t end = clock();
-        printf("Последовательное время: %f сек\n", (double)(end - start) / CLOCKS_PER_SEC);
-    #endif
+    start = omp_get_wtime();
+    #pragma omp parallel for
+    for (int i = 0; i < N; ++i) {
+        double x = a + i * dx;
+        deriv[i] = (f(x + H) - f(x - H)) / (2.0 * H);
+    }
+    end = omp_get_wtime();
+    cout << "Параллельное время:    " << end - start << " сек\n";
 
-    // ---- Параллельный расчёт (если доступен OpenMP) ----
-    #ifdef _OPENMP
-        start = omp_get_wtime();
-        #pragma omp parallel for
-        for (int i = 0; i < N; i++) {
-            double x = a + i * dx;
-            deriv[i] = (f(x + H) - f(x - H)) / (2.0 * H);
-        }
-        end = omp_get_wtime();
-        printf("Параллельное время:    %f сек\n", end - start);
-
-        // Дополнительная информация о нитях
-        printf("Использовано нитей: %d\n", omp_get_max_threads());
-    #else
-        printf("OpenMP не поддерживается. Параллельная версия пропущена.\n");
-    #endif
-
-    // Проверка корректности (одно значение)
     int mid = N / 2;
     double x_mid = a + mid * dx;
-    printf("Приближённое f'(%f) = %f (точное = %f)\n",
-           x_mid, deriv[mid], 2.0 * x_mid);
+    cout << "Приближённое f'(" << x_mid << ") = " << deriv[mid]
+         << " (точное = " << 2.0 * x_mid << ")\n";
 
     return 0;
 }
